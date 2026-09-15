@@ -1,0 +1,18 @@
+services:
+  - type: web
+    name: dongbac-backend
+    runtime: docker
+    healthCheckPath: /actuator/health
+    envVars:
+      - key: SPRING_PROFILES_ACTIVE
+        value: prod
+      - key: DB_SCHEMA
+        value: dongbac
+      - key: CORS_ALLOWED_ORIGINS
+        value: https://dong-bac-group.vercel.app,https://admin-dongbac-lhzv.vercel.app
+      - key: DB_URL
+        sync: false
+      - key: DB_USERNAME
+        sync: false
+      - key: DB_PASSWORD
+        sync: false

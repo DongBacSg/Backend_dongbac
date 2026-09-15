@@ -1,0 +1,12 @@
+spring:
+  jpa:
+    show-sql: false
+
+server:
+  shutdown: graceful
+
+logging:
+  level:
+    root: INFO
+    com.dongbacsaigon.backend: INFO
+    org.hibernate.SQL: WARN

@@ -1,0 +1,8 @@
+spring:
+  jpa:
+    show-sql: false
+
+logging:
+  level:
+    com.dongbacsaigon.backend: DEBUG
+    org.hibernate.SQL: INFO
