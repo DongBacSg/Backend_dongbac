@@ -1,12 +1,37 @@
 spring:
   jpa:
     show-sql: false
+  lifecycle:
+    timeout-per-shutdown-phase: ${SHUTDOWN_TIMEOUT:20s}
 
 server:
   shutdown: graceful
+  forward-headers-strategy: framework
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health
+  endpoint:
+    health:
+      show-details: never
+
+springdoc:
+  api-docs:
+    enabled: ${SWAGGER_ENABLED:false}
+  swagger-ui:
+    enabled: ${SWAGGER_ENABLED:false}
 
 logging:
   level:
     root: INFO
     com.dongbacsaigon.backend: INFO
     org.hibernate.SQL: WARN
+
+app:
+  cors:
+    allowed-origins: ${CORS_ALLOWED_ORIGINS:https://dong-bac-group.vercel.app,https://admin-dongbac-lhzv.vercel.app}
+  auth:
+    refresh-cookie-secure: ${AUTH_REFRESH_COOKIE_SECURE:true}
+    refresh-cookie-same-site: ${AUTH_REFRESH_COOKIE_SAME_SITE:None}

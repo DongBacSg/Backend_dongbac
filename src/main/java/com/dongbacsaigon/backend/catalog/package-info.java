@@ -1,4 +1,4 @@
 /**
- * Catalog module boundary for future categories and products.
+ * Category and revisioned Product catalog domain.
  */
 package com.dongbacsaigon.backend.catalog;

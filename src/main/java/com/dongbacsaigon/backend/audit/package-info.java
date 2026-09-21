@@ -1,4 +1,4 @@
 /**
- * Audit module boundary for future audit trail records.
+ * Persistent append-only audit trail and request correlation support.
  */
 package com.dongbacsaigon.backend.audit;

@@ -1,4 +1,4 @@
 /**
- * Article module boundary for future announcements, recruitment, news, fertilizer documents, and knowledge content.
+ * Revisioned Article CMS for internal activities, news, and knowledge content.
  */
 package com.dongbacsaigon.backend.article;
