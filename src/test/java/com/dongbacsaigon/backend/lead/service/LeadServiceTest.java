@@ -17,10 +17,12 @@ import java.util.UUID;
 import com.dongbacsaigon.backend.audit.entity.AuditAction;
 import com.dongbacsaigon.backend.audit.entity.AuditTargetType;
 import com.dongbacsaigon.backend.audit.service.AuditService;
+import com.dongbacsaigon.backend.audit.service.AuditActor;
 import com.dongbacsaigon.backend.common.exception.ApiException;
 import com.dongbacsaigon.backend.lead.dto.CreateLeadRequest;
 import com.dongbacsaigon.backend.lead.dto.LeadPageResponse;
 import com.dongbacsaigon.backend.lead.dto.LeadResponse;
+import com.dongbacsaigon.backend.lead.dto.PublicContactRequest;
 import com.dongbacsaigon.backend.lead.dto.UpdateLeadAssignmentRequest;
 import com.dongbacsaigon.backend.lead.dto.UpdateLeadRequest;
 import com.dongbacsaigon.backend.lead.dto.UpdateLeadStatusRequest;
@@ -40,6 +42,66 @@ class LeadServiceTest {
     private final UserRepository userRepository = mock(UserRepository.class);
     private final AuditService auditService = mock(AuditService.class);
     private final LeadService service = new LeadService(leadRepository, userRepository, auditService);
+
+    @Test
+    void publicContactAcceptsPhoneOnlyAndNeverSetsInternalFields() {
+        org.mockito.ArgumentCaptor<CustomerLead> captor = org.mockito.ArgumentCaptor.forClass(CustomerLead.class);
+        when(leadRepository.save(any(CustomerLead.class))).thenAnswer(invocation -> invocation.getArgument(0));
+
+        service.createPublicContact(new PublicContactRequest(
+                "  Customer  ", " 0901234567 ", null, " <b>Question</b> ",
+                " <script>bad()</script>Need details "
+        ));
+
+        verify(leadRepository).save(captor.capture());
+        CustomerLead lead = captor.getValue();
+        assertThat(lead.getFullName()).isEqualTo("Customer");
+        assertThat(lead.getPhone()).isEqualTo("0901234567");
+        assertThat(lead.getSubject()).isEqualTo("Question");
+        assertThat(lead.getMessage()).isEqualTo("Need details");
+        assertThat(lead.getStatus()).isEqualTo(LeadStatus.NEW);
+        assertThat(lead.getCreatedBy()).isNull();
+        assertThat(lead.getAssignedTo()).isNull();
+        assertThat(lead.getInternalNote()).isNull();
+        verify(auditService).recordSuccessAfterCommit(
+                AuditActor.anonymous(), AuditAction.PUBLIC_CONTACT_CREATED, AuditTargetType.LEAD, lead.getId(), null
+        );
+    }
+
+    @Test
+    void publicContactAcceptsEmailOnlyAndAdminCanListAnonymousLead() {
+        org.mockito.ArgumentCaptor<CustomerLead> captor = org.mockito.ArgumentCaptor.forClass(CustomerLead.class);
+        when(leadRepository.save(any(CustomerLead.class))).thenAnswer(invocation -> invocation.getArgument(0));
+        service.createPublicContact(new PublicContactRequest(
+                "Customer", null, " PERSON@Example.COM ", null, "Please call me"
+        ));
+        verify(leadRepository).save(captor.capture());
+        CustomerLead lead = captor.getValue();
+        when(leadRepository.findAdminPage(eq(null), eq(null), eq(null), eq(false), any(Pageable.class)))
+                .thenReturn(new PageImpl<>(List.of(lead)));
+        when(leadRepository.findDetailedById(lead.getId())).thenReturn(Optional.of(lead));
+
+        LeadPageResponse page = service.list(0, 20, null, null, null, false);
+
+        assertThat(lead.getEmail()).isEqualTo("person@example.com");
+        assertThat(page.content()).hasSize(1);
+        assertThat(page.content().get(0).createdBy()).isNull();
+        assertThat(service.get(lead.getId()).createdBy()).isNull();
+    }
+
+    @Test
+    void publicContactRejectsMissingContactInvalidEmailAndEmptySanitizedMessage() {
+        assertThatThrownBy(() -> service.createPublicContact(new PublicContactRequest(
+                "Customer", " ", null, null, "Hello"
+        ))).isInstanceOf(ApiException.class).hasMessageContaining("At least one phone number");
+        assertThatThrownBy(() -> service.createPublicContact(new PublicContactRequest(
+                "Customer", null, "invalid-email", null, "Hello"
+        ))).isInstanceOf(ApiException.class).hasMessage("Email format is invalid.");
+        assertThatThrownBy(() -> service.createPublicContact(new PublicContactRequest(
+                "Customer", "0901234567", null, null, "<script>bad()</script>"
+        ))).isInstanceOf(ApiException.class).hasMessage("Contact message is required.");
+        verify(leadRepository, never()).save(any(CustomerLead.class));
+    }
 
     @Test
     void createPhoneOnlyLeadStartsNewAndDerivesCreatedBy() {

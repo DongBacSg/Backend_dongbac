@@ -16,5 +16,6 @@ public enum AuditTargetType {
     CATEGORY,
     PRODUCT_REVISION,
     ARTICLE_REVISION,
-    LEAD
+    LEAD,
+    MANUFACTURING_SERVICE
 }

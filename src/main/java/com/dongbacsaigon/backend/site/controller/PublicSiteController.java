@@ -6,10 +6,14 @@ import com.dongbacsaigon.backend.site.dto.ManufacturingPageResponse;
 import com.dongbacsaigon.backend.site.dto.SiteBannerResponse;
 import com.dongbacsaigon.backend.site.dto.SitePartnerResponse;
 import com.dongbacsaigon.backend.site.dto.SiteSettingsResponse;
+import com.dongbacsaigon.backend.site.dto.PublicManufacturingServiceResponse;
+import com.dongbacsaigon.backend.site.dto.PublicManufacturingServiceSummary;
+import com.dongbacsaigon.backend.site.service.ManufacturingServiceManager;
 import com.dongbacsaigon.backend.site.service.SiteManagementService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
@@ -19,9 +23,14 @@ import org.springframework.web.bind.annotation.RestController;
 class PublicSiteController {
 
     private final SiteManagementService siteManagementService;
+    private final ManufacturingServiceManager manufacturingServiceManager;
 
-    PublicSiteController(SiteManagementService siteManagementService) {
+    PublicSiteController(
+            SiteManagementService siteManagementService,
+            ManufacturingServiceManager manufacturingServiceManager
+    ) {
         this.siteManagementService = siteManagementService;
+        this.manufacturingServiceManager = manufacturingServiceManager;
     }
 
     @GetMapping("/banners")
@@ -46,5 +55,17 @@ class PublicSiteController {
     @Operation(summary = "Get public manufacturing page")
     ManufacturingPageResponse getPublicManufacturing() {
         return siteManagementService.getManufacturing(true);
+    }
+
+    @GetMapping("/manufacturing/services")
+    @Operation(summary = "List active manufacturing services")
+    List<PublicManufacturingServiceSummary> listManufacturingServices() {
+        return manufacturingServiceManager.listPublic();
+    }
+
+    @GetMapping("/manufacturing/services/{slug}")
+    @Operation(summary = "Get active manufacturing service by slug")
+    PublicManufacturingServiceResponse getManufacturingService(@PathVariable String slug) {
+        return manufacturingServiceManager.getPublic(slug);
     }
 }

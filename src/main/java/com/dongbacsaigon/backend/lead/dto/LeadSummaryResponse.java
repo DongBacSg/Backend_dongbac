@@ -12,6 +12,7 @@ public record LeadSummaryResponse(
         String phone,
         String email,
         String companyName,
+        String subject,
         LeadStatus status,
         CatalogUserSummary assignedTo,
         CatalogUserSummary createdBy,

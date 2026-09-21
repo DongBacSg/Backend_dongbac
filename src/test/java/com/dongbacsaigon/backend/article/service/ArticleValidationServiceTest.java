@@ -35,12 +35,27 @@ class ArticleValidationServiceTest {
     );
 
     @Test
-    void supportsExactlyThreeArticleTypes() {
+    void supportsExactlyFiveArticleTypes() {
         assertThat(ArticleType.values()).containsExactly(
                 ArticleType.INTERNAL_ACTIVITY,
                 ArticleType.NEWS,
-                ArticleType.KNOWLEDGE
+                ArticleType.KNOWLEDGE,
+                ArticleType.RECRUITMENT,
+                ArticleType.ANNOUNCEMENT
         );
+    }
+
+    @Test
+    void recruitmentAndAnnouncementUseNormalDraftValidation() {
+        for (ArticleType type : List.of(ArticleType.RECRUITMENT, ArticleType.ANNOUNCEMENT)) {
+            ArticleValidationService.ResolvedDraft draft = service.resolveDraft(
+                    new ArticleDraftRequest(type, "Thông báo tuyển dụng", null, null,
+                            "<p>Safe</p><script>bad()</script>", null, null, List.of()),
+                    UUID.randomUUID()
+            );
+            assertThat(draft.articleType()).isEqualTo(type);
+            assertThat(draft.content()).isEqualTo("<p>Safe</p>");
+        }
     }
 
     @Test

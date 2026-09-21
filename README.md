@@ -2,7 +2,7 @@
 
 Backend Phase 8 for Dong Bac Sai Gon.
 
-This repository is a Spring Boot modular monolith for the public website and internal management system. Phase 2 added authentication and security. Phase 3 added a generic approval workflow and persistent audit trail. Phase 4 added Cloudinary direct-upload media management and site content management. Phase 5 added Category management and a revisioned Product catalog. Phase 6 added a revisioned Article CMS. Phase 7 added internal Customer Lead management and a role-aware operational Dashboard. Phase 8 hardens security, testing, and production operations without adding a business module or frontend integration.
+This repository is a Spring Boot modular monolith for the public website and internal management system. Phase 2 added authentication and security. Phase 3 added a generic approval workflow and persistent audit trail. Phase 4 added Cloudinary direct-upload media management and site content management. Phase 5 added Category management and a revisioned Product catalog. Phase 6 added a revisioned Article CMS. Phase 7 added internal Customer Lead management and a role-aware operational Dashboard. Phase 8 hardened security, testing, and production operations. A later V8 compatibility patch adds public contact intake, two Article types, and manufacturing service details.
 
 ## Stack
 
@@ -105,6 +105,7 @@ Migrations:
 - `V5__create_catalog.sql`: creates Phase 5 Category, Product identity, Product revision, image relationship, and related-Product tables.
 - `V6__create_article_cms.sql`: creates Phase 6 Article identity, Article revision, and Article media relationship tables.
 - `V7__create_customer_leads.sql`: creates the Phase 7 internal `customer_leads` table. Dashboard data is computed and has no persistence table.
+- `V8__frontend_compatibility_features.sql`: permits anonymous-origin Leads, adds Lead subject and the two Article types, and creates manufacturing service detail content.
 
 ## Phase 2 Schema
 
@@ -222,7 +223,7 @@ Site-management tables:
 - `dongbac.manufacturing_page`: singleton manufacturing page title, introduction, hero image.
 - `dongbac.manufacturing_sections`: manufacturing content sections with optional image, sort order, active flag.
 
-Phase 4 itself does not create catalog, Article, or Lead tables. Those are introduced only by V5, V6, and V7 respectively. Recruitment and public Contact intake tables remain intentionally absent.
+Phase 4 itself does not create catalog, Article, or Lead tables. Those are introduced by V5, V6, and V7 respectively. V8 extends those existing tables; it does not create separate Recruitment or public Contact tables.
 
 ## Phase 5 Catalog Schema
 
@@ -289,6 +290,8 @@ Supported Article types are exactly:
 INTERNAL_ACTIVITY
 NEWS
 KNOWLEDGE
+RECRUITMENT
+ANNOUNCEMENT
 ```
 
 Article publication status is one of:
@@ -328,7 +331,7 @@ Permissions:
 
 ## Phase 7 Customer Leads
 
-V7 creates only `dongbac.customer_leads`. A Lead stores contact/business text, current status, optional assignment, authenticated creator, timestamps, and an optimistic `version`. There is no hard-delete endpoint, public Lead endpoint, anonymous intake endpoint, Lead event table, Customer account, sales pipeline, or financial field.
+V7 creates `dongbac.customer_leads`; V8 adds optional `subject` and makes `created_by` nullable for public contact. A Lead stores contact/business text, current status, optional assignment, timestamps, and an optimistic `version`. There is no hard-delete endpoint, public Lead list/detail endpoint, Lead event table, Customer account, sales pipeline, or financial field.
 
 Lead statuses are exactly:
 
@@ -341,15 +344,15 @@ CANCELLED
 SPAM
 ```
 
-Creation always starts at `NEW`, and `createdBy` comes from the authenticated principal. At least one trimmed phone number or valid email address is required. Email is lowercased after trimming; phone accepts reasonable local/international digits, `+`, spaces, hyphens, and parentheses. The business has no strict transition matrix, so authorized users may move between any valid statuses. A status no-op returns cleanly without a duplicate audit event.
+Creation always starts at `NEW`. Internal creation retains the authenticated `createdBy`; public contact has `createdBy=null`. At least one trimmed phone number or valid email address is required. Email is lowercased after trimming; phone accepts reasonable local/international digits, `+`, spaces, hyphens, and parentheses. The business has no strict transition matrix, so authorized users may move between any valid statuses. A status no-op returns cleanly without a duplicate audit event.
 
 Lead permissions:
 
 - `ADMIN` and `STAFF`: create, list, read, replace editable contact/business text, edit internal notes, and change status.
 - `ADMIN` only: assign, reassign, or unassign an active `ADMIN` or `STAFF` account.
-- Public and anonymous users: no Lead endpoint or Lead data access.
+- Public and anonymous users: only `POST /api/public/contact` for anonymous intake; no Lead data read access.
 
-Lead audit actions are `LEAD_CREATED`, `LEAD_UPDATED`, `LEAD_STATUS_CHANGED`, `LEAD_ASSIGNED`, and `LEAD_UNASSIGNED`. Audit reasons contain only concise status or assignment identifiers; customer phone, email, message, and internal note are not duplicated into audit metadata.
+Lead audit actions include `PUBLIC_CONTACT_CREATED`, `LEAD_CREATED`, `LEAD_UPDATED`, `LEAD_STATUS_CHANGED`, `LEAD_ASSIGNED`, and `LEAD_UNASSIGNED`. Public contact audit stores the Lead ID with an anonymous actor and no PII. Audit reasons contain only concise status or assignment identifiers; customer phone, email, message, and internal note are not duplicated into audit metadata.
 
 ## Phase 7 Dashboard
 
@@ -620,6 +623,11 @@ GET    /api/admin/site/manufacturing/sections
 POST   /api/admin/site/manufacturing/sections
 PATCH  /api/admin/site/manufacturing/sections/{id}
 DELETE /api/admin/site/manufacturing/sections/{id}
+GET    /api/admin/site/manufacturing/services?page=0&size=20&search=&active=
+GET    /api/admin/site/manufacturing/services/{id}
+POST   /api/admin/site/manufacturing/services
+PATCH  /api/admin/site/manufacturing/services/{id}
+DELETE /api/admin/site/manufacturing/services/{id}
 ```
 
 These routes are `ADMIN` only. Site content can reference only active image media. External URLs are accepted only when they use `http` or `https`.
@@ -631,9 +639,11 @@ GET /api/public/site/banners
 GET /api/public/site/partners
 GET /api/public/site/settings
 GET /api/public/site/manufacturing
+GET /api/public/site/manufacturing/services
+GET /api/public/site/manufacturing/services/{slug}
 ```
 
-Public endpoints require no authentication, return only public-safe media fields, and expose only active banners, partners, and manufacturing sections.
+Public endpoints require no authentication, return only public-safe media fields, and expose only active banners, partners, manufacturing sections, and services. Service list omits full content; detail by slug returns active content or 404. Admin service management is ADMIN-only and uses existing active image Media; referenced Media cannot be deleted.
 
 ## Catalog APIs
 
@@ -739,7 +749,7 @@ GET /api/public/articles/internal-activities
 GET /api/public/articles/{slug}
 ```
 
-The generic list accepts `type`, `search`, `page`, and `size`. List responses are lightweight and omit the content body. Detail responses include sanitized content, one optional featured image, and ordered content images. DRAFT, PENDING_REVIEW, REJECTED, UNPUBLISHED, and ARCHIVED content is never included or resolved by public slug.
+The generic list accepts `type` (including `RECRUITMENT` and `ANNOUNCEMENT`), `search`, `page`, and `size`. Both new types use the same revision and Approval Center workflow. List responses are lightweight and omit the content body. Detail responses include sanitized content, one optional featured image, and ordered content images. DRAFT, PENDING_REVIEW, REJECTED, UNPUBLISHED, and ARCHIVED content is never included or resolved by public slug.
 
 ## Lead And Dashboard APIs
 
@@ -754,7 +764,15 @@ PATCH /api/admin/leads/{leadId}/status
 PATCH /api/admin/leads/{leadId}/assignment
 ```
 
-The first five operations allow `ADMIN` and `STAFF`; assignment is `ADMIN` only. General update replaces only `fullName`, `phone`, `email`, `companyName`, `message`, and `internalNote`. Status and assignment have dedicated endpoints. There is deliberately no DELETE route and no route under `/api/public/**`.
+The first five operations allow `ADMIN` and `STAFF`; assignment is `ADMIN` only. General update replaces only `fullName`, `phone`, `email`, `companyName`, `message`, and `internalNote`. Status and assignment have dedicated endpoints. There is deliberately no DELETE route or public Lead read endpoint.
+
+Public contact intake:
+
+```text
+POST /api/public/contact
+```
+
+The anonymous request contains `name`, optional `phone` and `email` (at least one required), optional `subject`, and required `message`. It returns `201` with only an acknowledgement message. Client-supplied Lead status, assignment, internal note, creator, and timestamps are not accepted as DTO fields. Existing JSON request-size, validation, correlation-ID, and error handling apply. Edge rate limiting and/or CAPTCHA remain a future deployment-security TODO; this patch adds no new provider or distributed infrastructure.
 
 Lead list accepts `page`, `size`, `search`, `status`, `assignedTo`, and `unassigned`. Search covers name, phone, email, and company but not internal notes. `assignedTo` together with `unassigned=true` returns `400`. Page size is bounded to 100 and ordering is `createdAt DESC, id DESC`.
 
@@ -1090,7 +1108,7 @@ Swagger can authorize with a Bearer access token. Refresh and logout require the
 6. Call `GET /api/admin/dashboard/summary`; verify Lead totals/status count, Product identity counts, Article identity counts, active Media, and global pending Approvals.
 7. Login as STAFF; verify list/read/update/status operations work and assignment returns `403`.
 8. Call Dashboard as STAFF and confirm pending Approvals count only that STAFF user's submissions.
-9. Confirm there is no `/api/public/leads`, `/api/public/contact`, or anonymous Lead POST endpoint.
+9. Submit `POST /api/public/contact` without a token; confirm it creates a `NEW` Lead visible to Admin and increases the Dashboard Lead count. There is no `/api/public/leads` read endpoint.
 
 ## Render Configuration
 
@@ -1143,7 +1161,7 @@ Render health check remains:
 /actuator/health
 ```
 
-Phase 8 adds no secret and no schema migration. `SWAGGER_ENABLED` and `CLOUDINARY_HTTP_TIMEOUT_SECONDS` are optional operational settings with safe profile defaults. Do not manually create Phase 2–7 tables in Supabase. Flyway V2 through V7 apply automatically on deployment. A successful Render startup should show Flyway validating V1 through V7 followed by Hibernate schema validation. No V8 migration was required.
+Phase 8 itself added no secret or migration. This later frontend-compatibility patch adds V8. `SWAGGER_ENABLED` and `CLOUDINARY_HTTP_TIMEOUT_SECONDS` are optional operational settings with safe profile defaults. Do not manually create the application tables in Supabase. Flyway V2 through V8 apply automatically on deployment; a successful startup should show Flyway at schema version 8 followed by Hibernate schema validation.
 
 ## Verification SQL
 
@@ -1202,6 +1220,7 @@ Expected:
 - V5 success
 - V6 success
 - V7 success
+- V8 success
 
 ## Security Notes
 
@@ -1223,7 +1242,7 @@ Expected:
 - Article media is limited to active images and all Article revision references participate in media deletion protection.
 - STAFF cannot mutate Categories or invoke Product publication lifecycle commands.
 - STAFF cannot approve, hard-delete, unpublish, republish, or archive Articles.
-- Lead APIs are authenticated under `/api/admin/leads`; no customer Lead data is public.
+- Lead read/manage APIs remain authenticated under `/api/admin/leads`; public contact intake returns no customer Lead data.
 - `CustomerLead` uses optimistic locking, has no hard-delete API, and assignment is `ADMIN` only.
 - Lead audit metadata excludes customer phone, email, message, and internal note content.
 - Dashboard pending Approval counts preserve the global `ADMIN` and owner-scoped `STAFF` boundary.
@@ -1253,7 +1272,7 @@ Required secrets are `DB_URL`, `DB_USERNAME`, `DB_PASSWORD`, `JWT_SECRET_BASE64`
 
 Bootstrap variables are required only for initial ADMIN creation. Bootstrap creates an ADMIN only when none exists; it never resets an existing password. Remove `BOOTSTRAP_ADMIN_PASSWORD` after confirming the initial ADMIN and restart normally.
 
-Flyway is the only schema owner and Hibernate remains `ddl-auto=validate`. Migrations are forward-only: never edit V1-V7, delete Flyway history rows, or run Flyway clean in production. Phase 8 required no V8 migration.
+Flyway is the only schema owner and Hibernate remains `ddl-auto=validate`. Migrations are forward-only: never edit V1-V7, delete Flyway history rows, or run Flyway clean in production. V8 belongs to this later frontend-compatibility patch.
 
 Render uses `PORT`, `/actuator/health`, Java 17, a non-root container user, graceful shutdown, and the production profile. Swagger is disabled in production unless `SWAGGER_ENABLED=true` is an explicit operational decision. Liveness and readiness are available below health without exposing component details.
 
@@ -1266,7 +1285,7 @@ After deployment, perform read-only or low-risk checks:
 3. Login with an authorized ADMIN test account, call `GET /api/admin/auth/me`, then read Dashboard, Media, Approval, and Lead lists.
 4. Verify refresh rotates the HttpOnly cookie and logout invalidates it. Browser cross-site acceptance from the Admin frontend is deferred to frontend integration.
 5. For an explicitly approved Cloudinary smoke test, upload one known test image through signature/direct-upload/complete and delete it only when it is unreferenced.
-6. Query `dongbac.flyway_schema_history` and confirm V1-V7 succeeded. Check `information_schema.tables` for only the documented application tables.
+6. Query `dongbac.flyway_schema_history` and confirm V1-V8 succeeded. Check `information_schema.tables` for the documented application tables, including `manufacturing_services`.
 
 Do not create, publish, reject, archive, or delete real production business content merely for a smoke test.
 

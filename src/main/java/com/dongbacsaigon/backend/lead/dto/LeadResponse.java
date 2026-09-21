@@ -12,6 +12,7 @@ public record LeadResponse(
         String phone,
         String email,
         String companyName,
+        String subject,
         String message,
         LeadStatus status,
         CatalogUserSummary assignedTo,

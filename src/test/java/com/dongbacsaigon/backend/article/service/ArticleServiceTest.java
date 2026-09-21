@@ -6,6 +6,7 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.when;
 
 import java.math.BigDecimal;
@@ -50,6 +51,39 @@ class ArticleServiceTest {
             articleRepository, revisionRepository, mediaRepository, approvalRequestRepository,
             userRepository, validationService, approvalService, auditService
     );
+
+    @Test
+    void recruitmentAndAnnouncementFollowSameDraftAndApprovalWorkflow() {
+        User staff = staff();
+        when(userRepository.findById(staff.getId())).thenReturn(Optional.of(staff));
+        when(articleRepository.save(any(Article.class))).thenAnswer(invocation -> invocation.getArgument(0));
+        when(revisionRepository.save(any(ArticleRevision.class))).thenAnswer(invocation -> invocation.getArgument(0));
+        when(mediaRepository.findByRevisionIdOrderByUsageTypeAscSortOrderAsc(any())).thenReturn(List.of());
+
+        for (ArticleType type : List.of(ArticleType.RECRUITMENT, ArticleType.ANNOUNCEMENT)) {
+            ArticleDraftRequest request = new ArticleDraftRequest(
+                    type, "Title", null, "Summary", "<p>Content</p>", null, null, List.of()
+            );
+            when(validationService.resolveDraft(any(), any())).thenReturn(new ArticleValidationService.ResolvedDraft(
+                    type, "Title", "title", "Summary", "<p>Content</p>", null, null, List.of()
+            ));
+            ArticleRevisionResponse created = service.create(request, staff.getId());
+            assertThat(created.status()).isEqualTo(ArticleRevisionStatus.DRAFT);
+            assertThat(created.articleType()).isEqualTo(type);
+        }
+
+        ArgumentCaptor<ArticleRevision> captor = ArgumentCaptor.forClass(ArticleRevision.class);
+        verify(revisionRepository, times(2)).save(captor.capture());
+        for (ArticleRevision revision : captor.getAllValues()) {
+            Article article = revision.getArticle();
+            when(articleRepository.findByIdForUpdate(article.getId())).thenReturn(Optional.of(article));
+            when(revisionRepository.findByIdAndArticleId(revision.getId(), article.getId()))
+                    .thenReturn(Optional.of(revision));
+            ArticleRevisionResponse submitted = service.submit(article.getId(), revision.getId(), staff.getId());
+            assertThat(submitted.status()).isEqualTo(ArticleRevisionStatus.PENDING_REVIEW);
+            verify(approvalService).submitForReview(ApprovalResourceType.ARTICLE, article.getId(), 1, staff.getId());
+        }
+    }
 
     @Test
     void createBuildsDraftIdentityAndServerNumberedRevisionOne() {

@@ -40,6 +40,28 @@ class PublicArticleServiceTest {
     private final PublicArticleService service = new PublicArticleService(revisionRepository, mediaRepository, new SlugService());
 
     @Test
+    void newTypesUsePublishedOnlyPublicFilter() {
+        for (ArticleType type : List.of(ArticleType.RECRUITMENT, ArticleType.ANNOUNCEMENT)) {
+            Fixture fixture = publishedFixture(type.name().toLowerCase(), type);
+            when(revisionRepository.findPublicPage(
+                    eq(ArticlePublicationStatus.PUBLISHED), eq(ArticleRevisionStatus.PUBLISHED),
+                    eq(type), eq(null), any(Pageable.class)
+            )).thenReturn(new PageImpl<>(List.of(fixture.revision())));
+            when(mediaRepository.findByRevisionIdInOrderByRevisionIdAscUsageTypeAscSortOrderAsc(
+                    List.of(fixture.revision().getId()))).thenReturn(List.of());
+
+            PublicArticlePageResponse response = service.list(0, 20, type, null);
+
+            assertThat(response.content()).hasSize(1);
+            assertThat(response.content().get(0).articleType()).isEqualTo(type);
+            verify(revisionRepository).findPublicPage(
+                    eq(ArticlePublicationStatus.PUBLISHED), eq(ArticleRevisionStatus.PUBLISHED),
+                    eq(type), eq(null), any(Pageable.class)
+            );
+        }
+    }
+
+    @Test
     void publicListRequestsOnlyCurrentPublishedRevisionsWithTypeFilter() {
         Fixture fixture = publishedFixture("tin-tuc", ArticleType.NEWS);
         when(revisionRepository.findPublicPage(

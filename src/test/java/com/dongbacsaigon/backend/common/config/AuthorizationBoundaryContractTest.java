@@ -45,6 +45,13 @@ class AuthorizationBoundaryContractTest {
         assertThat(publicSite.getAnnotation(PreAuthorize.class)).isNull();
         assertThat(publicSite.getAnnotation(RequestMapping.class).value())
                 .containsExactly("/api/public/site");
+
+        Class<?> publicContact = Class.forName(
+                "com.dongbacsaigon.backend.lead.controller.PublicContactController"
+        );
+        assertThat(publicContact.getAnnotation(PreAuthorize.class)).isNull();
+        assertThat(publicContact.getAnnotation(RequestMapping.class).value())
+                .containsExactly("/api/public/contact");
     }
 
     private void assertClassRule(String className, String expression) throws Exception {

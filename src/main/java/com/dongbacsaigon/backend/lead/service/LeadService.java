@@ -6,11 +6,13 @@ import java.util.regex.Pattern;
 
 import com.dongbacsaigon.backend.audit.entity.AuditAction;
 import com.dongbacsaigon.backend.audit.entity.AuditTargetType;
+import com.dongbacsaigon.backend.audit.service.AuditActor;
 import com.dongbacsaigon.backend.audit.service.AuditService;
 import com.dongbacsaigon.backend.common.exception.ApiException;
 import com.dongbacsaigon.backend.lead.dto.CreateLeadRequest;
 import com.dongbacsaigon.backend.lead.dto.LeadPageResponse;
 import com.dongbacsaigon.backend.lead.dto.LeadResponse;
+import com.dongbacsaigon.backend.lead.dto.PublicContactRequest;
 import com.dongbacsaigon.backend.lead.dto.UpdateLeadAssignmentRequest;
 import com.dongbacsaigon.backend.lead.dto.UpdateLeadRequest;
 import com.dongbacsaigon.backend.lead.dto.UpdateLeadStatusRequest;
@@ -19,6 +21,8 @@ import com.dongbacsaigon.backend.lead.entity.LeadStatus;
 import com.dongbacsaigon.backend.lead.repository.CustomerLeadRepository;
 import com.dongbacsaigon.backend.user.entity.User;
 import com.dongbacsaigon.backend.user.repository.UserRepository;
+import org.jsoup.Jsoup;
+import org.jsoup.safety.Safelist;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Sort;
@@ -60,6 +64,25 @@ public class LeadService {
         leadRepository.save(lead);
         auditService.recordSuccessAfterCommit(actor, AuditAction.LEAD_CREATED, AuditTargetType.LEAD, lead.getId(), "status NEW");
         return LeadMapper.toResponse(lead);
+    }
+
+    @Transactional
+    public void createPublicContact(PublicContactRequest request) {
+        String name = plainText(request.name());
+        String message = plainText(request.message());
+        String subject = plainText(request.subject());
+        ResolvedDetails details = resolveDetails(name, request.phone(), request.email(), null, message, null);
+        if (!StringUtils.hasText(details.message())) {
+            throw new ApiException(HttpStatus.BAD_REQUEST, "Contact message is required.");
+        }
+        subject = requireMaxLength(normalizeOptional(subject), 240, "Contact subject is too long.");
+        CustomerLead lead = new CustomerLead(
+                details.fullName(), details.phone(), details.email(), null, subject, details.message(), null, null
+        );
+        leadRepository.save(lead);
+        auditService.recordSuccessAfterCommit(
+                AuditActor.anonymous(), AuditAction.PUBLIC_CONTACT_CREATED, AuditTargetType.LEAD, lead.getId(), null
+        );
     }
 
     @Transactional(readOnly = true)
@@ -205,6 +228,10 @@ public class LeadService {
 
     private String normalizeOptional(String value) {
         return StringUtils.hasText(value) ? value.trim() : null;
+    }
+
+    private String plainText(String value) {
+        return value == null ? null : Jsoup.clean(value.trim(), Safelist.none()).trim();
     }
 
     private String requireMaxLength(String value, int maxLength, String message) {

@@ -40,7 +40,7 @@ class ProductionConfigurationContractTest {
     }
 
     @Test
-    void migrationHistoryRemainsV1ThroughV7WithoutEmptyV8() throws IOException {
+    void migrationHistoryContainsFrontendCompatibilityV8AfterOriginalMigrations() throws IOException {
         Path migrations = Path.of("src", "main", "resources", "db", "migration");
         List<String> names;
         try (var stream = Files.list(migrations)) {
@@ -54,7 +54,8 @@ class ProductionConfigurationContractTest {
                 "V4__create_media_and_site_management.sql",
                 "V5__create_catalog.sql",
                 "V6__create_article_cms.sql",
-                "V7__create_customer_leads.sql"
+                "V7__create_customer_leads.sql",
+                "V8__frontend_compatibility_features.sql"
         );
     }
 

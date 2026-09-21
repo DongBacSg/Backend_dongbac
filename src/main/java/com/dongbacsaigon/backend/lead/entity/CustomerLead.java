@@ -37,6 +37,9 @@ public class CustomerLead {
     @Column(name = "company_name", length = 200)
     private String companyName;
 
+    @Column(length = 240)
+    private String subject;
+
     @Column(columnDefinition = "text")
     private String message;
 
@@ -51,8 +54,8 @@ public class CustomerLead {
     @Column(name = "internal_note", columnDefinition = "text")
     private String internalNote;
 
-    @ManyToOne(fetch = FetchType.LAZY, optional = false)
-    @JoinColumn(name = "created_by", nullable = false)
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "created_by")
     private User createdBy;
 
     @Column(name = "created_at", nullable = false, updatable = false)
@@ -77,11 +80,25 @@ public class CustomerLead {
             String internalNote,
             User createdBy
     ) {
+        this(fullName, phone, email, companyName, null, message, internalNote, createdBy);
+    }
+
+    public CustomerLead(
+            String fullName,
+            String phone,
+            String email,
+            String companyName,
+            String subject,
+            String message,
+            String internalNote,
+            User createdBy
+    ) {
         this.id = UUID.randomUUID();
         this.fullName = fullName;
         this.phone = phone;
         this.email = email;
         this.companyName = companyName;
+        this.subject = subject;
         this.message = message;
         this.internalNote = internalNote;
         this.createdBy = createdBy;
@@ -106,6 +123,7 @@ public class CustomerLead {
     public String getPhone() { return phone; }
     public String getEmail() { return email; }
     public String getCompanyName() { return companyName; }
+    public String getSubject() { return subject; }
     public String getMessage() { return message; }
     public LeadStatus getStatus() { return status; }
     public User getAssignedTo() { return assignedTo; }

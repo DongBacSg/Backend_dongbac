@@ -22,7 +22,7 @@ class PublicArticleController {
     PublicArticleController(PublicArticleService service) { this.service = service; }
 
     @GetMapping
-    @Operation(summary = "List public Articles", description = "Only current PUBLISHED revisions. Types: INTERNAL_ACTIVITY, NEWS, KNOWLEDGE.")
+    @Operation(summary = "List public Articles", description = "Only current PUBLISHED revisions. Types: INTERNAL_ACTIVITY, NEWS, KNOWLEDGE, RECRUITMENT, ANNOUNCEMENT.")
     PublicArticlePageResponse list(
             @RequestParam(defaultValue = "0") int page,
             @RequestParam(defaultValue = "20") int size,
